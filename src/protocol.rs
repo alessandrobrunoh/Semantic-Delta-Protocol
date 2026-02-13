@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
-use crate::models::{SemanticSymbol, SemanticDelta, SymbolReference};
+use crate::models::{SemanticSymbol, SemanticRecord, SymbolReference};
 
-/// SDP Protocol Version
-pub const SDP_VERSION: &str = "0.1.0";
+/// SRP Protocol Version
+pub const SRP_VERSION: &str = "0.1.0";
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SdpRequest {
+pub struct SrpRequest {
     pub jsonrpc: String,
     pub id: Option<u64>,
     pub method: String,
@@ -13,27 +13,27 @@ pub struct SdpRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SdpResponse {
+pub struct SrpResponse {
     pub jsonrpc: String,
     pub id: Option<u64>,
     pub result: Option<serde_json::Value>,
-    pub error: Option<SdpRpcError>,
+    pub error: Option<SrpRpcError>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SdpRpcError {
+pub struct SrpRpcError {
     pub code: i32,
     pub message: String,
 }
 
-/// Core methods of the Semantic Delta Protocol
+/// Core methods of the Semantic Registry Protocol
 pub mod methods {
     /// Analyze a file and return semantic symbols
-    pub const ANALYZE: &str = "sdp/analyze";
-    /// Compare two sets of symbols and return deltas
-    pub const DIFF: &str = "sdp/diff";
+    pub const ANALYZE: &str = "srp/analyze";
+    /// Compare two sets of symbols and return records
+    pub const DIFF: &str = "srp/diff";
     /// Get the semantic history of a symbol
-    pub const GET_HISTORY: &str = "sdp/history";
+    pub const GET_HISTORY: &str = "srp/history";
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,5 +56,5 @@ pub struct DiffParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiffResult {
-    pub deltas: Vec<SemanticDelta>,
+    pub records: Vec<SemanticRecord>,
 }

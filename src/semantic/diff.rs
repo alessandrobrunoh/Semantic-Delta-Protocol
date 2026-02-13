@@ -1,4 +1,4 @@
-use crate::models::{DeltaKind, SemanticDelta, SemanticSymbol};
+use crate::models::{RecordKind, SemanticRecord, SemanticSymbol};
 use std::collections::HashMap;
 
 pub struct SemanticDiffer;
@@ -9,8 +9,8 @@ impl SemanticDiffer {
         curr_symbols: &[SemanticSymbol],
         from_snapshot_id: Option<i64>,
         to_snapshot_id: i64,
-    ) -> Vec<SemanticDelta> {
-        let mut deltas = Vec::new();
+    ) -> Vec<SemanticRecord> {
+        let mut records = Vec::new();
 
         // Maps for efficient lookups
         let prev_map: HashMap<String, &SemanticSymbol> =
@@ -23,27 +23,27 @@ impl SemanticDiffer {
             if let Some(prev) = prev_map.get(&curr.name) {
                 matched_prev.insert(curr.name.clone());
                 if prev.structural_hash != curr.structural_hash {
-                    deltas.push(SemanticDelta {
+                    records.push(SemanticRecord {
                         id: 0,
                         project_id: None,
                         from_snapshot_id,
                         to_snapshot_id,
                         symbol_name: curr.name.clone(),
                         new_name: None,
-                        kind: DeltaKind::Modified,
+                        kind: RecordKind::Modified,
                         structural_hash: curr.structural_hash.clone(),
                     });
                 }
             } else {
                 // Potential rename or purely added
-                deltas.push(SemanticDelta {
+                records.push(SemanticRecord {
                     id: 0,
                     project_id: None,
                     from_snapshot_id,
                     to_snapshot_id,
                     symbol_name: curr.name.clone(),
                     new_name: None,
-                    kind: DeltaKind::Added,
+                    kind: RecordKind::Added,
                     structural_hash: curr.structural_hash.clone(),
                 });
             }
@@ -52,37 +52,37 @@ impl SemanticDiffer {
         // 2. Identify Deleted and Renamed
         for prev in prev_symbols {
             if !matched_prev.contains(&prev.name) {
-                // Check if this structural_hash exists in the Added deltas (Rename detection)
+                // Check if this structural_hash exists in the Added records (Rename detection)
                 let mut found_rename = false;
 
-                // Sort deltas to ensure deterministic rename matching if multiple symbols have same hash
-                for delta in deltas.iter_mut() {
-                    if matches!(delta.kind, DeltaKind::Added)
-                        && delta.structural_hash == prev.structural_hash
+                // Sort records to ensure deterministic rename matching if multiple symbols have same hash
+                for record in records.iter_mut() {
+                    if matches!(record.kind, RecordKind::Added)
+                        && record.structural_hash == prev.structural_hash
                     {
-                        delta.kind = DeltaKind::Renamed;
-                        delta.new_name = Some(delta.symbol_name.clone());
-                        delta.symbol_name = prev.name.clone();
+                        record.kind = RecordKind::Renamed;
+                        record.new_name = Some(record.symbol_name.clone());
+                        record.symbol_name = prev.name.clone();
                         found_rename = true;
                         break;
                     }
                 }
 
                 if !found_rename {
-                    deltas.push(SemanticDelta {
+                    records.push(SemanticRecord {
                         id: 0,
                         project_id: None,
                         from_snapshot_id,
                         to_snapshot_id,
                         symbol_name: prev.name.clone(),
                         new_name: None,
-                        kind: DeltaKind::Deleted,
+                        kind: RecordKind::Deleted,
                         structural_hash: prev.structural_hash.clone(),
                     });
                 }
             }
         }
 
-        deltas
+        records
     }
 }

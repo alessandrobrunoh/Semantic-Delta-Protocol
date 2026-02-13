@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum SdpError {
+pub enum SrpError {
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -18,4 +18,4 @@ pub enum SdpError {
     Analysis(String),
 }
 
-pub type SdpResult<T> = Result<T, SdpError>;
+pub type SrpResult<T> = Result<T, SrpError>;

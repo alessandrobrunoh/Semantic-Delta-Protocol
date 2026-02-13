@@ -8,7 +8,7 @@ pub mod queries;
 pub mod registry;
 
 use self::fingerprint::Fingerprinter;
-use crate::SdpResult;
+use crate::SrpResult;
 use crate::models::{SemanticSymbol, SymbolReference};
 use bytes::Bytes;
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ pub struct SemanticParser {
 }
 
 impl SemanticParser {
-    pub fn new() -> SdpResult<Self> {
+    pub fn new() -> SrpResult<Self> {
         Ok(Self {
             parser: Parser::new(),
             query_cache: HashMap::new(),
@@ -73,19 +73,19 @@ impl SemanticParser {
         extension: &str,
         snapshot_id: i64,
         file_path: Option<&str>,
-    ) -> SdpResult<(Vec<SemanticSymbol>, Vec<SymbolReference>)> {
+    ) -> SrpResult<(Vec<SemanticSymbol>, Vec<SymbolReference>)> {
         let lang_info = match registry::get_language_info(extension) {
             Some(info) => info,
             None => return Ok((vec![], vec![])),
         };
 
         self.parser.set_language(&lang_info.language).map_err(|e| {
-            crate::error::SdpError::Internal(format!("Error setting language: {}", e))
+            crate::error::SrpError::Internal(format!("Error setting language: {}", e))
         })?;
 
         if !self.query_cache.contains_key(extension) {
             let q = Query::new(&lang_info.language, lang_info.query).map_err(|e| {
-                crate::error::SdpError::Internal(format!("Query error for {}: {}", extension, e))
+                crate::error::SrpError::Internal(format!("Query error for {}: {}", extension, e))
             })?;
             self.query_cache.insert(extension.to_string(), q);
         }
@@ -189,7 +189,7 @@ impl SemanticParser {
         extension: &str,
         snapshot_id: i64,
         file_path: Option<&str>,
-    ) -> SdpResult<Vec<SemanticSymbol>> {
+    ) -> SrpResult<Vec<SemanticSymbol>> {
         let (symbols, _) = self.parse_semantic_data(content, extension, snapshot_id, file_path)?;
         Ok(symbols)
     }

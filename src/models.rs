@@ -25,7 +25,7 @@ pub struct SymbolReference {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum DeltaKind {
+pub enum RecordKind {
     Added,
     Modified,
     Deleted,
@@ -33,14 +33,14 @@ pub enum DeltaKind {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SemanticDelta {
+pub struct SemanticRecord {
     pub id: i64,
     pub project_id: Option<String>,
     pub from_snapshot_id: Option<i64>,
     pub to_snapshot_id: i64,
     pub symbol_name: String,
     pub new_name: Option<String>,
-    pub kind: DeltaKind,
+    pub kind: RecordKind,
     pub structural_hash: String,
 }
 
