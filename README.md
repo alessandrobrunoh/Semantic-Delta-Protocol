@@ -1,138 +1,152 @@
 <div align="center">
 
-# 🌲 Semantic Registry Protocol (SRP)
+# 🌲 Semantic Delta Protocol (SDP)
 
-**Understand code, not just lines. A universal standard for minimal, structural code persistence.**
+**A universal standard for structural code persistence and semantic versioning.**
 
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
-[![Protocol](https://img.shields.io/badge/protocol-JSON--RPC-blue.svg)](#srcprotocolrs)
-[![Tree-Sitter](https://img.shields.io/badge/engine-Tree--Sitter-green.svg)](https://tree-sitter.github.io/tree-sitter/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
----
-
-[Explore Features](#why-srp) • [Architecture](#technical-architecture) • [The Lifecycle of a Save](#the-lifecycle-of-a-save) • [Supported Languages](#supported-languages) • [Getting Started](#getting-started)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 
-## Overview
+---
 
-The **Semantic Registry Protocol (SRP)** is a high-performance framework designed to replace traditional local history and file-based versioning with a minimal, secure, and structural approach. While IDEs like VSCode or IntelliJ save full copies of files, SRP understands the **structural evolution** of your code at every save.
+## What is SDP?
 
-By leveraging **Tree-Sitter** and **FastCDC**, SRP provides:
-- **Structural Persistence**: Versioning symbols, not lines.
-- **Deduplication**: Storing only what actually changed logically.
-- **Refactoring Intelligence**: Native detection of renames and moves.
-- **Registry Alignment**: A single source of truth for every function, class, and method.
+SDP is a protocol and framework for **understanding code at the semantic level** — not just lines, but functions, classes, and symbols. It tracks how your code evolves structurally.
+
+### Core Concepts
+
+| Concept | Description |
+|--------|-------------|
+| **Structural Hash** | A hash of code structure, not content. Survives whitespace changes and refactors. |
+| **Semantic Delta** | The difference between two versions of a symbol (function, class, etc.) |
+| **Content Addressable Storage** | Deduplicated storage using BLAKE3 hashes |
+| **AST Analysis** | Tree-sitter powered parsing for accurate symbol extraction |
 
 ---
 
-## Technical Architecture
+## Why Semantic?
 
-### 1. The Lifecycle of a Save
+Traditional versioning tracks **lines**. SDP tracks **symbols**:
 
-When a file is saved, SRP triggers a high-speed pipeline to determine the "Semantic Delta" between the current buffer and the Registry.
+```
+Traditional (Git):
+  - Line 5 changed from "fn foo()"
+  - Line 10 added "let x = 1"
 
-```mermaid
-sequenceDiagram
-    participant Editor
-    participant SRP as SRP Engine
-    participant TS as Tree-Sitter
-    participant Reg as Semantic Registry
-    
-    Editor->>SRP: Save Event (File Content)
-    SRP->>TS: Parse to AST
-    TS-->>SRP: Symbol Map (Functions, Classes)
-    SRP->>SRP: Generate Structural Fingerprints
-    SRP->>Reg: Fetch Last Known State
-    Reg-->>SRP: Previous Symbols & Hashes
-    SRP->>SRP: Run Decision Logic (Diffing)
-    SRP->>Reg: Commit Semantic Records
-    SRP-->>Editor: Acknowledge (Minimal Delta)
+SDP (This Protocol):
+  - Function "foo" renamed to "bar" 
+  - New variable "x" added in "main"
+  - Struct "User" field "email" removed
 ```
 
-### 2. Structural Fingerprinting
-To distinguish between "cosmetic" and "logical" changes, SRP uses a custom **Structural Fingerprinter**. 
-
-- **Normalization**: During AST traversal, SRP ignores variable names, comments, and literal values.
-- **The Identity**: It hashes the **structure** (loops, branches, call patterns).
-- **Benefit**: Changing a variable name from `i` to `index` does **not** trigger a "Modified" record. The logic remains identical.
+This means:
+- **Rename refactoring** → tracked as rename, not delete+add
+- **Whitespace changes** → ignored (same semantic content)
+- **Move to different file** → tracked if symbol identity preserved
 
 ---
 
-## The Decision Engine (Diff Logic)
+## Architecture
 
-The `SemanticDiffer` doesn't just look at bytes. It follows a rigorous logical flow to categorize every change into **Semantic Records**:
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Editor    │────▶│  SDP Engine │────▶│  Storage    │
+└─────────────┘     └─────────────┘     └─────────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │ Tree-Sitter │
+                   └─────────────┘
+```
 
-| Change Type | Detection Logic | Result |
-| :--- | :--- | :--- |
-| **Identical** | Name matches AND Structural Hash matches. | **Ignored**. No storage overhead. |
-| **Modified** | Name matches BUT Structural Hash is different. | **Modified Record**. Only the new logic is stored. |
-| **Renamed** | Name is missing, but a new symbol has the SAME Structural Hash. | **Renamed Record**. Tracks the evolution across identities. |
-| **Added** | New Name AND New Structural Hash found. | **Added Record**. |
-| **Deleted** | Name is gone AND no structural match found in new symbols. | **Deleted Record**. |
+### Save Pipeline
 
----
-
-## Storage: Hybrid Semantic-CDC Chunking
-
-SRP solves the "Local History Bloat" problem by using a hybrid approach to save data:
-
-1.  **Semantic Alignment**: SRP attempts to align chunk boundaries with AST nodes (e.g., one chunk = one function).
-2.  **Deduplication**: If a function hasn't changed logically, its chunk is reused. The Registry only stores a lightweight reference.
-3.  **FastCDC Fallback**: For massive nodes or unsupported languages, it falls back to *Content-Defined Chunking*, ensuring that a small change in a huge file only invalidates a tiny fraction of the data.
-
----
-
-## Why SRP?
-
-| Feature | IDE Local History | Semantic Registry Protocol |
-|---------|-------------------|----------------------------|
-| **Granularity** | Entire File (Text) | Symbol-based (AST) |
-| **Storage** | Heavy (full copies) | Ultra-Minimal (Semantic Records) |
-| **Renames** | Shown as Delete + Add | Detected as `Renamed` |
-| **Noise** | Diffs on comments/variable names | Ignores cosmetic changes |
-| **Reliability** | Line-based | Logic-aware (Safe at every save) |
+1. **Parse** → Tree-sitter builds AST
+2. **Extract** → Identify symbols (functions, classes, etc.)
+3. **Hash** → Generate structural fingerprints
+4. **Compare** → Find semantic deltas vs previous state
+5. **Store** → Commit to CAS + update registry
 
 ---
 
-## Core Components
+## Protocol (JSON-RPC)
 
-- **`src/semantic/`**: 
-    - `parser.rs`: Orchestrates Tree-Sitter parsing.
-    - `fingerprint.rs`: The Structural Hashing engine.
-    - `diff.rs`: The Decision Logic for record generation.
-    - `chunker.rs`: The Hybrid Semantic-CDC implementation.
-- **`src/protocol.rs`**: JSON-RPC standard for SRP communication.
-- **`src/models.rs`**: Definitions for `SemanticRecord`, `SemanticSymbol`, and `RecordKind`.
+SDP uses JSON-RPC 2.0 for communication:
+
+```json
+// Get file history
+{"jsonrpc": "2.0", "method": "sdp/getFileHistory", "params": {"path": "/src/main.rs"}, "id": 1}
+
+// Response
+{"jsonrpc": "2.0", "result": {"versions": [{"hash": "abc123", "symbols": [...], "timestamp": "..."}]}, "id": 1}
+```
+
+### Methods
+
+| Method | Description |
+|--------|-------------|
+| `sdp/save` | Save current file state |
+| `sdp/getHistory` | Get version history for file |
+| `sdp/getSymbolHistory` | Get history for specific symbol |
+| `sdp/restore` | Restore file to version |
+| `sdp/search` | Search across all history |
+
+---
+
+## Storage Format
+
+```
+project/
+├── .sdp/                  # SDP data (or project's .mnemosyne)
+│   ├── db/                # SQLite registry
+│   │   └── symbols.db     # Symbol history
+│   └── cas/               # Content Addressable Storage
+│       └── {hash_prefix}/  # Content chunks
+```
 
 ---
 
 ## Supported Languages
 
-SRP is designed for the modern polyglot environment:
-- **Systems**: Rust, Go, C, C++, C#
-- **Web**: JavaScript, TypeScript, HTML, CSS, PHP
-- **Data/Script**: Python, Ruby, JSON
-- **Docs**: Markdown
+SDP works with any Tree-sitter supported language:
+
+- Rust, Go, C, C++, Python, JavaScript, TypeScript
+- Java, C#, Ruby, PHP, Swift, Kotlin
+- HTML, CSS, JSON, YAML, Markdown
+- ...and 100+ more
+
+---
+
+## Implementations
+
+| Project | Description |
+|--------|-------------|
+| [Mnemosyne](https://github.com/alessandrobrunoh/Mnemosyne) | Local history CLI using SDP |
+| Zed Editor | Built-in semantic editing |
 
 ---
 
 ## Getting Started
 
-### Installation
-```bash
-cargo build --release
-```
-
-### Usage (Library)
 ```rust
-use semantic_registry_protocol::semantic::SemanticParser;
+use semantic_delta_protocol::{Engine, Config};
 
-let mut parser = SemanticParser::new()?;
-// Analyze code and get structural records
-let symbols = parser.parse_symbols(content, "rs", 1, Some("main.rs"))?;
+let config = Config::default();
+let engine = Engine::new(config)?;
+
+engine.save("/src/main.rs", content)?;
+
+// Get history
+let history = engine.get_history("/src/main.rs")?;
+for version in history.versions {
+    println!("{} - {} symbols", version.hash, version.symbols.len());
+}
 ```
+
+---
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+MIT — See [LICENSE](LICENSE)
