@@ -259,4 +259,4 @@ Semantic history enables intelligent context:
 
 ## License
 
-MIT — See [LICENSE](LICENSE)
+APACHE 2.0 — See [LICENSE](LICENSE)
