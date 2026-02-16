@@ -5,7 +5,7 @@
 **A universal standard for structural code persistence and semantic versioning.**
 
 [![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-APACHE-blue.svg)](LICENSE)
 
 </div>
 
