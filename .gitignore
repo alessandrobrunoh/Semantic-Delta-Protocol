@@ -35,3 +35,9 @@ criterion/
 *.tmp
 *.swp
 *.swo
+
+# Agents Temp files
+.agents/
+
+# Mnemosyne local storage (per-project)
+.mnemosyne/

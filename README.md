@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌲 Semantic Delta Protocol (SDP)
+# Semantic Delta Protocol (SDP)
 
 **A universal standard for structural code persistence and semantic versioning.**
 
@@ -11,40 +11,99 @@
 
 ---
 
-## What is SDP?
+## Origin & Future
 
-SDP is a protocol and framework for **understanding code at the semantic level** — not just lines, but functions, classes, and symbols. It tracks how your code evolves structurally.
+SDP was created specifically for **Mnemosyne** — a local history tool for developers. It exists because we needed a way to track code changes that survives refactoring, not just line-by-line diffs.
 
-### Core Concepts
+Currently, SDP has one purpose: powering Mnemosyne. But we hope it could be useful for more:
 
-| Concept | Description |
-|--------|-------------|
-| **Structural Hash** | A hash of code structure, not content. Survives whitespace changes and refactors. |
-| **Semantic Delta** | The difference between two versions of a symbol (function, class, etc.) |
-| **Content Addressable Storage** | Deduplicated storage using BLAKE3 hashes |
-| **AST Analysis** | Tree-sitter powered parsing for accurate symbol extraction |
+- **IDE integrations** — Semantic-aware version control built into editors
+- **AI coding assistants** — Understanding code evolution for better context
+- **Refactoring tools** — Track how code changes across renames and moves
+- **Code review** — Semantic diffs that ignore formatting noise
+
+If you're interested in using SDP for something else, we'd love to hear about it. Open an issue or reach out!
 
 ---
 
-## Why Semantic?
+## The Problem We Solve
 
-Traditional versioning tracks **lines**. SDP tracks **symbols**:
+Every developer has been here:
+
+> **You spend 3 hours refactoring. You rename `UserService` to `AccountService`. You move functions around. You clean up whitespace. Then disaster strikes.** You need to revert, but Git shows 47 files changed with 2,000 lines diff. Everything looks like it was deleted and rewritten—even though your logic is mostly the same.
+
+**This is the fundamental limitation of line-based versioning.**
+
+Traditional tools track **what changed**. SDP tracks **what mattered**.
+
+---
+
+## Why Semantic Matters
+
+Git tells you *which lines* changed. SDP tells you *what your code actually did*.
+
+| Scenario | Git Shows | SDP Shows |
+|----------|-----------|-----------|
+| Rename function | `- fn old()` + `fn new()` | Function "old" renamed to "new" |
+| Reformat code | 500 lines changed | No changes (same semantic content) |
+| Move file | File deleted + new file | Symbol "Foo" moved to new location |
+| Add field to struct | 3 lines added | Field "email" added to struct "User" |
+
+**This is the difference between:**
+- Knowing *that* code changed
+- Understanding *what* changed
+
+---
+
+## Core Concepts
+
+### Structural Hash
+
+A fingerprint of code **structure**, not content:
+
+```rust
+// Same structural hash regardless of:
+// - Whitespace
+// - Comments
+// - Variable names (in some contexts)
+
+fn calculate_total(items: Vec<f64>) -> f64 {
+    items.iter().sum()
+}
+```
+
+The structural hash survives refactoring because it captures **what the code does**, not how it's written.
+
+### Semantic Delta
+
+The actual change that matters:
+
+```json
+{
+  "type": "modified",
+  "symbol": "User::validate_email",
+  "old_hash": "abc123",
+  "new_hash": "def456",
+  "changes": [
+    { "type": "added", "node": "if let Some(email)" },
+    { "type": "removed", "node": "regex::is_valid(&email)" }
+  ]
+}
+```
+
+### Content Addressable Storage
+
+Every unique chunk of code is stored once, referenced by BLAKE3 hash:
 
 ```
-Traditional (Git):
-  - Line 5 changed from "fn foo()"
-  - Line 10 added "let x = 1"
-
-SDP (This Protocol):
-  - Function "foo" renamed to "bar" 
-  - New variable "x" added in "main"
-  - Struct "User" field "email" removed
+cas/
+├── ab/           # Hash prefix "ab..."
+│   └── abc123... # Actual content
+├── cd/
+│   └── def456...
 ```
 
-This means:
-- **Rename refactoring** → tracked as rename, not delete+add
-- **Whitespace changes** → ignored (same semantic content)
-- **Move to different file** → tracked if symbol identity preserved
+This means 100 versions of a file with 95% similarity = ~1.05x storage, not 100x.
 
 ---
 
@@ -63,35 +122,58 @@ This means:
 
 ### Save Pipeline
 
-1. **Parse** → Tree-sitter builds AST
-2. **Extract** → Identify symbols (functions, classes, etc.)
-3. **Hash** → Generate structural fingerprints
-4. **Compare** → Find semantic deltas vs previous state
-5. **Store** → Commit to CAS + update registry
+1. **Parse** — Tree-sitter builds AST
+2. **Extract** — Identify symbols (functions, classes, etc.)
+3. **Hash** — Generate structural fingerprints
+4. **Compare** — Find semantic deltas vs previous state
+5. **Store** — Commit to CAS + update registry
 
 ---
 
 ## Protocol (JSON-RPC)
 
-SDP uses JSON-RPC 2.0 for communication:
+SDP uses JSON-RPC 2.0 over Unix Domain Sockets (Unix) or Named Pipes (Windows):
 
 ```json
-// Get file history
-{"jsonrpc": "2.0", "method": "sdp/getFileHistory", "params": {"path": "/src/main.rs"}, "id": 1}
+// Get symbol history
+{
+  "jsonrpc": "2.0",
+  "method": "sdp/getSymbolHistory",
+  "params": {
+    "path": "/src/main.rs",
+    "symbol": "main"
+  },
+  "id": 1
+}
 
 // Response
-{"jsonrpc": "2.0", "result": {"versions": [{"hash": "abc123", "symbols": [...], "timestamp": "..."}]}, "id": 1}
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "symbol": "main",
+    "history": [
+      {
+        "version": 5,
+        "hash": "abc123",
+        "delta": { "type": "modified", "changes": [...] },
+        "timestamp": "2024-01-15T10:30:00Z"
+      }
+    ]
+  },
+  "id": 1
+}
 ```
 
 ### Methods
 
 | Method | Description |
 |--------|-------------|
-| `sdp/save` | Save current file state |
+| `sdp/initialize` | Initialize session with client capabilities |
+| `sdp/save` | Save current file state with semantic analysis |
 | `sdp/getHistory` | Get version history for file |
-| `sdp/getSymbolHistory` | Get history for specific symbol |
+| `sdp/getSymbolHistory` | Get evolutionary history for specific symbol |
 | `sdp/restore` | Restore file to version |
-| `sdp/search` | Search across all history |
+| `sdp/search` | Search across all semantic history |
 
 ---
 
@@ -99,12 +181,14 @@ SDP uses JSON-RPC 2.0 for communication:
 
 ```
 project/
-├── .sdp/                  # SDP data (or project's .mnemosyne)
-│   ├── db/                # SQLite registry
-│   │   └── symbols.db     # Symbol history
+├── .sdp/                  # Protocol data (or .mnemosyne)
+│   ├── db/                # redb B-tree registry
+│   │   └── symbols.db     # Symbol history & structural hashes
 │   └── cas/               # Content Addressable Storage
-│       └── {hash_prefix}/  # Content chunks
+│       └── {hash_prefix}/  # Deduplicated chunks (BLAKE3)
 ```
+
+**Why redb?** Pure Rust, Copy-on-Write, embedded, no migration headaches.
 
 ---
 
@@ -112,17 +196,18 @@ project/
 
 SDP works with any Tree-sitter supported language:
 
-- Rust, Go, C, C++, Python, JavaScript, TypeScript
-- Java, C#, Ruby, PHP, Swift, Kotlin
-- HTML, CSS, JSON, YAML, Markdown
-- ...and 100+ more
+- **Systems**: Rust, Go, C, C++
+- **Scripting**: Python, JavaScript, TypeScript, Ruby, PHP
+- **Enterprise**: Java, C#, Swift, Kotlin
+- **Web**: HTML, CSS, JSON, YAML, Markdown
+- **...and 100+ more**
 
 ---
 
 ## Implementations
 
 | Project | Description |
-|--------|-------------|
+|---------|-------------|
 | [Mnemosyne](https://github.com/alessandrobrunoh/Mnemosyne) | Local history CLI using SDP |
 | Zed Editor | Built-in semantic editing |
 
@@ -138,12 +223,37 @@ let engine = Engine::new(config)?;
 
 engine.save("/src/main.rs", content)?;
 
-// Get history
-let history = engine.get_history("/src/main.rs")?;
+// Get evolutionary history of a function
+let history = engine.get_symbol_history("/src/main.rs", "calculate_total")?;
 for version in history.versions {
-    println!("{} - {} symbols", version.hash, version.symbols.len());
+    println!("{}: {:?}", version.delta.delta_type, version.delta.changes);
 }
 ```
+
+---
+
+## Why This Matters
+
+### For IDEs
+
+Build semantic-aware features that understand **what** code does, not just **where** it is:
+- "When did this function change?"
+- "Show me all versions of this class"
+- "What was this variable called before?"
+
+### For Developers
+
+Never lose context during refactoring:
+- Rename tracking
+- Move detection  
+- Semantic diffs (what actually changed, not just lines)
+
+### For AI Coding Assistants
+
+Semantic history enables intelligent context:
+- "Continue from where the user left off"
+- "Understand the evolution of this function"
+- "Don't suggest already-tried approaches"
 
 ---
 
